@@ -281,7 +281,7 @@ const RATING_SHORT: Record<Rating, string> = {
   good_at: 'Good',
   okay_at: 'Okay',
   mediocre_at: 'Bad',
-  bad_at: 'Bad',
+  bad_at: 'Worst',
 }
 
 export async function generateMatrixPDF(comparison: Comparison) {
@@ -438,8 +438,8 @@ export async function generateMatrixPDF(comparison: Comparison) {
     ['best_at', 'Best'],
     ['good_at', 'Good'],
     ['okay_at', 'Okay'],
-    ['mediocre_at', 'Fair'],
-    ['bad_at', 'Weak'],
+    ['mediocre_at', 'Bad'],
+    ['bad_at', 'Worst'],
   ]
   let lx = margin
   legendItems.forEach(([rating, label]) => {

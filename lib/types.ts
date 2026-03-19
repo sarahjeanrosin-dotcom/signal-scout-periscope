@@ -5,7 +5,7 @@ export const RATING_LABELS: Record<Rating, string> = {
   good_at: 'Good',
   okay_at: 'Okay',
   mediocre_at: 'Bad',
-  bad_at: 'Bad',
+  bad_at: 'Worst',
 }
 
 export const RATING_SCORES: Record<Rating, number> = {
