@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { generateComparisonReport } from '@/lib/ai'
 import { NextResponse } from 'next/server'
 
+export const maxDuration = 300
+
 export async function POST(
   _request: Request,
   ctx: RouteContext<'/api/compare/[id]/generate'>
