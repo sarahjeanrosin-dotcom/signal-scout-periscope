@@ -4,6 +4,12 @@ import { RATING_SCORES } from './types'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+function parseJSON(text: string) {
+  // Strip markdown code fences (```json ... ``` or ``` ... ```)
+  const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+  return JSON.parse(stripped)
+}
+
 // ─── Feature Extraction ──────────────────────────────────────────────────────
 
 export interface ExtractedFeature {
@@ -52,8 +58,7 @@ Return ONLY the JSON object, no markdown, no extra text.`
   })
 
   const text = message.content[0].type === 'text' ? message.content[0].text : ''
-  const parsed = JSON.parse(text)
-  return parsed
+  return parseJSON(text)
 }
 
 // ─── Competitor Discovery ─────────────────────────────────────────────────────
@@ -88,7 +93,7 @@ Return ONLY the JSON array, no markdown, no extra text.`
   })
 
   const text = message.content[0].type === 'text' ? message.content[0].text : ''
-  return JSON.parse(text)
+  return parseJSON(text)
 }
 
 // ─── Comparison Report ────────────────────────────────────────────────────────
@@ -166,7 +171,7 @@ Return ONLY the JSON object, no markdown, no extra text.`
   })
 
   const text = message.content[0].type === 'text' ? message.content[0].text : ''
-  const aiReport = JSON.parse(text)
+  const aiReport = parseJSON(text)
 
   return {
     primary_company: primaryCompany.name,
