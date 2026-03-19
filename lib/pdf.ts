@@ -112,34 +112,32 @@ export async function generatePDF(comparison: Comparison) {
   body(report.summary)
   y += 2
 
-  // Strengths & Weaknesses
+  // Strengths & Weaknesses — render row-by-row so wrapped items don't overlap
   const colW = contentW / 2 - 3
-  const swStartY = y
   doc.setFontSize(9)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(16, 185, 129)
   doc.text('Strengths', margin, y)
   doc.setTextColor(239, 68, 68)
   doc.text('Weaknesses', margin + colW + 6, y)
-  y += 4
+  y += 5
 
   const maxItems = Math.max(report.strengths.length, report.weaknesses.length)
-  report.strengths.forEach((s, i) => {
-    checkPageBreak(6)
+  for (let i = 0; i < maxItems; i++) {
+    const s = report.strengths[i]
+    const w = report.weaknesses[i]
+    const sLines = s ? doc.splitTextToSize(`• ${s}`, colW) : []
+    const wLines = w ? doc.splitTextToSize(`• ${w}`, colW) : []
+    const rowH_sw = Math.max(sLines.length, wLines.length) * 4 + 2
+    checkPageBreak(rowH_sw)
     doc.setFontSize(8.5)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(...COLORS.text)
-    const lines = doc.splitTextToSize(`✓ ${s}`, colW)
-    doc.text(lines, margin, y + i * 5)
-  })
-  report.weaknesses.forEach((w, i) => {
-    doc.setFontSize(8.5)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(...COLORS.text)
-    const lines = doc.splitTextToSize(`✗ ${w}`, colW)
-    doc.text(lines, margin + colW + 6, y + i * 5)
-  })
-  y += maxItems * 5 + 4
+    if (sLines.length) doc.text(sLines, margin, y)
+    if (wLines.length) doc.text(wLines, margin + colW + 6, y)
+    y += rowH_sw
+  }
+  y += 2
   divider()
 
   // ─── Feature Matrix ───────────────────────────────────────────────────────────
@@ -166,29 +164,35 @@ export async function generatePDF(comparison: Comparison) {
   divider()
 
   report.feature_matrix.forEach((row, idx) => {
-    checkPageBreak(rowH + 1)
-    if (row.gap_flag) {
-      doc.setFillColor(...COLORS.gap_bg)
-      doc.rect(margin, y - 4.5, contentW, rowH - 1, 'F')
-    }
     doc.setFontSize(8)
     doc.setFont('helvetica', row.gap_flag ? 'bold' : 'normal')
+    const indent = row.gap_flag ? 4 : 2
+    const featureLines = doc.splitTextToSize(row.feature_name, colWidths[0] - indent - 2)
+    const rowH_actual = Math.max(rowH - 1, featureLines.length * 4 + 2)
+    checkPageBreak(rowH_actual + 1)
+
+    if (row.gap_flag) {
+      doc.setFillColor(...COLORS.gap_bg)
+      doc.rect(margin, y - 4.5, contentW, rowH_actual, 'F')
+    }
     doc.setTextColor(...COLORS.text)
-    const featureText = row.feature_name.length > 28 ? row.feature_name.slice(0, 27) + '…' : row.feature_name
     if (row.gap_flag) {
       doc.setFontSize(7)
       doc.text('▲', margin, y)
       doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
     }
-    doc.text(featureText, margin + (row.gap_flag ? 4 : 2), y)
+    doc.text(featureLines, margin + indent, y)
 
+    // Vertically center badges relative to the row
+    const badgeY = y + (featureLines.length - 1) * 2
     let xO = margin + colWidths[0]
     allCompanies.forEach((company, i) => {
       const rating = row.ratings[company] as Rating | null
-      if (rating) ratingBadge(rating, xO + 2, y)
+      if (rating) ratingBadge(rating, xO + 2, badgeY)
       xO += colWidths[i + 1]
     })
-    y += rowH - 1
+    y += rowH_actual
     if (idx < report.feature_matrix.length - 1) {
       doc.setDrawColor(...COLORS.border)
       doc.line(margin, y - 1.5, margin + contentW, y - 1.5)
