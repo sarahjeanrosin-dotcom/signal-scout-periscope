@@ -43,6 +43,7 @@ export interface CompanyFeature {
   description: string | null
   rating: Rating
   rating_rationale: string | null
+  sources: string[]
   source: 'ai' | 'user'
   is_user_added: boolean
   created_at: string
@@ -92,6 +93,8 @@ export interface FeatureMatrixRow {
   ratings: Record<string, Rating | null>
   scores: Record<string, number>
   gap_flag: boolean // true if primary company is lagging on this feature
+  sources?: Record<string, string[]>        // company name → reference URLs
+  rationale?: Record<string, string | null> // company name → rating rationale
 }
 
 export interface GapItem {

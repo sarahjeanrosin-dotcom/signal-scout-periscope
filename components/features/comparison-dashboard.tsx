@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import type { Comparison, ComparisonReport, CompletedReport, FeatureMatrixRow, GapItem, Rating } from '@/lib/types'
 import { RATING_LABELS, RATING_SCORES, RATING_COLORS } from '@/lib/types'
@@ -237,9 +237,11 @@ export function ComparisonDashboard({ comparison }: Props) {
                     return (
                       <td key={company} className="px-4 py-3 text-center">
                         {rating ? (
-                          <Badge variant={rating as any} className="text-xs">
-                            {RATING_LABELS[rating]}
-                          </Badge>
+                          <RatingBadgeWithTooltip
+                            rating={rating}
+                            sources={row.sources?.[company]}
+                            rationale={row.rationale?.[company]}
+                          />
                         ) : (
                           <span className="text-slate-300">—</span>
                         )}
@@ -276,6 +278,90 @@ export function ComparisonDashboard({ comparison }: Props) {
       )}
       </>)}
     </main>
+  )
+}
+
+function RatingBadgeWithTooltip({
+  rating,
+  sources,
+  rationale,
+}: {
+  rating: Rating
+  sources?: string[]
+  rationale?: string | null
+}) {
+  const [open, setOpen] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>()
+  const hasSources = sources && sources.length > 0
+  const hasContent = hasSources || !!rationale
+
+  function scheduleClose() {
+    closeTimer.current = setTimeout(() => setOpen(false), 120)
+  }
+  function cancelClose() {
+    clearTimeout(closeTimer.current)
+  }
+
+  if (!hasContent) {
+    return (
+      <Badge variant={rating as any} className="text-xs">
+        {RATING_LABELS[rating]}
+      </Badge>
+    )
+  }
+
+  return (
+    <div
+      className="relative inline-block"
+      onMouseEnter={() => { cancelClose(); setOpen(true) }}
+      onMouseLeave={scheduleClose}
+    >
+      <Badge variant={rating as any} className="text-xs cursor-help">
+        {RATING_LABELS[rating]}
+      </Badge>
+      {open && (
+        <div
+          className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-72 bg-white border border-slate-200 rounded-lg shadow-xl p-3 text-left"
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+        >
+          {/* small arrow */}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-slate-200" />
+          {rationale && (
+            <p className="text-xs text-slate-700 leading-relaxed mb-2">{rationale}</p>
+          )}
+          {hasSources && (
+            <>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+                Sources
+              </p>
+              <ul className="space-y-1">
+                {sources.map((url, i) => {
+                  const display = url
+                    .replace(/^https?:\/\/(www\.)?/, '')
+                    .replace(/\/$/, '')
+                    .split('/')
+                    .slice(0, 3)
+                    .join('/')
+                  return (
+                    <li key={i}>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline block truncate"
+                      >
+                        {display}
+                      </a>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

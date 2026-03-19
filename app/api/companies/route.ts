@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       description: f.description,
       rating: f.rating,
       rating_rationale: f.rating_rationale,
+      sources: f.sources ?? [],
       source: 'ai',
     }))
     await Promise.all([

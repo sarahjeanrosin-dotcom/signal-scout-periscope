@@ -19,6 +19,7 @@ export interface ExtractedFeature {
   description: string
   rating: Rating
   rating_rationale: string
+  sources: string[]
 }
 
 export async function extractCompanyFeatures(
@@ -37,10 +38,13 @@ Return a JSON object with this exact structure:
       "feature_name": "Feature or capability name",
       "description": "What this feature/capability does and how it manifests for clients",
       "rating": "best_at" | "good_at" | "okay_at" | "mediocre_at" | "bad_at",
-      "rating_rationale": "Why this rating based on client-facing evidence (reviews, marketing, product pages, case studies)"
+      "rating_rationale": "Why this rating based on client-facing evidence (reviews, marketing, product pages, case studies)",
+      "sources": ["https://example.com/relevant-page", "https://g2.com/products/example"]
     }
   ]
 }
+
+Each feature must include 1–3 "sources": public URLs (product pages, G2/Capterra/Trustpilot reviews, press releases, official docs) that best support the rating. Use real, known URLs — do not fabricate domains.
 
 Rating definitions:
 - best_at: Industry-leading, widely recognized as the gold standard in this area
@@ -173,10 +177,37 @@ Return ONLY the JSON object, no markdown, no extra text.`
   const text = message.content[0].type === 'text' ? message.content[0].text : ''
   const aiReport = parseJSON(text)
 
+  // Build per-company lookups from DB features so hover tooltips have sources + rationale
+  const sourcesLookup: Record<string, Record<string, string[]>> = {}
+  const rationaleLookup: Record<string, Record<string, string | null>> = {}
+  for (const company of [primaryCompany, ...competitors]) {
+    sourcesLookup[company.name] = {}
+    rationaleLookup[company.name] = {}
+    for (const f of company.features) {
+      const key = f.feature_name.toLowerCase()
+      sourcesLookup[company.name][key] = f.sources ?? []
+      rationaleLookup[company.name][key] = f.rating_rationale ?? null
+    }
+  }
+
+  const matrix: FeatureMatrixRow[] = (aiReport.feature_matrix as FeatureMatrixRow[]).map(row => {
+    const key = row.feature_name.toLowerCase()
+    return {
+      ...row,
+      sources: Object.fromEntries(
+        Object.keys(row.ratings).map(company => [company, sourcesLookup[company]?.[key] ?? []])
+      ),
+      rationale: Object.fromEntries(
+        Object.keys(row.ratings).map(company => [company, rationaleLookup[company]?.[key] ?? null])
+      ),
+    }
+  })
+
   return {
     primary_company: primaryCompany.name,
     competitors: competitors.map(c => c.name),
     generated_at: new Date().toISOString(),
     ...aiReport,
+    feature_matrix: matrix,
   }
 }

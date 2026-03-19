@@ -33,6 +33,7 @@ CREATE TABLE company_features (
   description TEXT,
   rating TEXT CHECK (rating IN ('best_at', 'good_at', 'okay_at', 'mediocre_at', 'bad_at')) NOT NULL,
   rating_rationale TEXT,
+  sources TEXT[] DEFAULT '{}',
   source TEXT CHECK (source IN ('ai', 'user')) DEFAULT 'ai',
   is_user_added BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
