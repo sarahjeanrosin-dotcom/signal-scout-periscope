@@ -6,11 +6,12 @@ import { Nav } from '@/components/nav'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Building2, Globe, Loader2, Sparkles } from 'lucide-react'
+import { Building2, Globe, Loader2, Sparkles, Info } from 'lucide-react'
 
 export default function NewCompanyPage() {
   const [name, setName] = useState('')
   const [website, setWebsite] = useState('')
+  const [context, setContext] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState<'form' | 'analyzing'>('form')
@@ -25,7 +26,7 @@ export default function NewCompanyPage() {
     const res = await fetch('/api/companies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), website: website.trim() || undefined }),
+      body: JSON.stringify({ name: name.trim(), website: website.trim() || undefined, context: context.trim() || undefined }),
     })
 
     const data = await res.json()
@@ -119,6 +120,22 @@ export default function NewCompanyPage() {
                       className="pl-9"
                     />
                   </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700" htmlFor="context">
+                    What does this company do? <span className="text-slate-400 font-normal">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <Info className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      id="context"
+                      placeholder="e.g. Proptech — property management software for commercial real estate"
+                      value={context}
+                      onChange={(e) => setContext(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-400">Helps disambiguate companies with common or shared names.</p>
                 </div>
                 <div className="pt-2 flex items-center gap-3">
                   <Button variant="primary" type="submit" disabled={!name.trim() || loading} className="flex items-center gap-2">

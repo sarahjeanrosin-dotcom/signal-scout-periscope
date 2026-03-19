@@ -15,9 +15,10 @@ export interface ExtractedFeature {
 
 export async function extractCompanyFeatures(
   companyName: string,
-  website?: string
+  website?: string,
+  context?: string
 ): Promise<{ features: ExtractedFeature[]; industry: string; description: string }> {
-  const prompt = `You are a competitive intelligence analyst. Analyze the company "${companyName}"${website ? ` (${website})` : ''} based on publicly available, client-facing information.
+  const prompt = `You are a competitive intelligence analyst. Analyze the company "${companyName}"${website ? ` (${website})` : ''}${context ? ` — additional context provided by the user: "${context}"` : ''} based on publicly available, client-facing information.
 
 Return a JSON object with this exact structure:
 {

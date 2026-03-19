@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { name, website } = body
+  const { name, website, context } = body
 
   if (!name?.trim()) {
     return NextResponse.json({ error: 'Company name is required' }, { status: 400 })
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
   try {
     // 1. Extract features from AI
-    const { features, industry, description } = await extractCompanyFeatures(name.trim(), website)
+    const { features, industry, description } = await extractCompanyFeatures(name.trim(), website, context)
 
     // 2. Create company record
     const { data: company, error: companyError } = await supabase
