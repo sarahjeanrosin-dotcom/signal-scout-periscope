@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
-import type { Comparison, ComparisonReport, FeatureMatrixRow, GapItem, Rating } from '@/lib/types'
+import type { Comparison, ComparisonReport, CompletedReport, FeatureMatrixRow, GapItem, Rating } from '@/lib/types'
 import { RATING_LABELS, RATING_SCORES, RATING_COLORS } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -30,7 +30,7 @@ interface Props {
 
 export function ComparisonDashboard({ comparison }: Props) {
   const [activeTab, setActiveTab] = useState<'analysis' | 'matrix'>('analysis')
-  const report = comparison.report_data as ComparisonReport
+  const report = comparison.report_data as CompletedReport
   const allCompanies = [report.primary_company, ...report.competitors]
   // Build radar chart data (top 8 features for readability)
   const topFeatures = report.feature_matrix.slice(0, 8)
