@@ -20,6 +20,7 @@ export function ComparisonPending({ comparisonId }: { comparisonId: string }) {
     // polling interval above.  Retry the kick-off on network failure.
     function generate() {
       fetch(`/api/compare/${comparisonId}/generate`, { method: 'POST' })
+        .then(() => { clearInterval(poll); router.refresh() })
         .catch(() => setTimeout(generate, 10_000))
     }
 

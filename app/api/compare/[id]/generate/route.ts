@@ -1,13 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { generateComparisonReport } from '@/lib/ai'
 import { NextResponse } from 'next/server'
-import { after } from 'next/server'
-
-// Run this route as a Netlify Edge Function so that next/after() passes the
-// AI work to context.waitUntil() — making it truly fire-and-forget.
-// On the Node.js (Lambda) runtime, after() falls back to backgroundWorkPromises
-// which are awaited before the connection closes, so the Lambda still times out.
-export const runtime = 'edge'
 
 export async function POST(
   _request: Request,
@@ -79,27 +72,23 @@ export async function POST(
     ? comparison.report_data.context
     : undefined
 
-  // On Edge runtime, after() passes the promise to context.waitUntil() so the
-  // HTTP response is sent immediately and the AI runs in the background.
-  after(async () => {
-    try {
-      const report = await generateComparisonReport(
-        { name: primaryCompany.name, features: primaryCompany.company_features },
-        competitorData,
-        context
-      )
+  try {
+    const report = await generateComparisonReport(
+      { name: primaryCompany.name, features: primaryCompany.company_features },
+      competitorData,
+      context
+    )
 
-      await supabase
-        .from('comparisons')
-        .update({ report_data: { status: 'complete', ...report } })
-        .eq('id', id)
-    } catch (err) {
-      await supabase
-        .from('comparisons')
-        .update({ report_data: { status: 'error', error: String(err) } })
-        .eq('id', id)
-    }
-  })
+    await supabase
+      .from('comparisons')
+      .update({ report_data: { status: 'complete', ...report } })
+      .eq('id', id)
+  } catch (err) {
+    await supabase
+      .from('comparisons')
+      .update({ report_data: { status: 'error', error: String(err) } })
+      .eq('id', id)
+  }
 
   return NextResponse.json({ ok: true })
 }
