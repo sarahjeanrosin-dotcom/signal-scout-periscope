@@ -299,7 +299,7 @@ function RatingBadgeWithTooltip({
     closeTimer.current = setTimeout(() => setOpen(false), 120)
   }
   function cancelClose() {
-    clearTimeout(closeTimer.current)
+    if (closeTimer.current !== null) clearTimeout(closeTimer.current)
   }
 
   if (!hasContent) {
