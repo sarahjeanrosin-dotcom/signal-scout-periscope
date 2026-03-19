@@ -1,6 +1,4 @@
-import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { generateComparisonReport } from '@/lib/ai'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -14,39 +12,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Primary company and at least one competitor required' }, { status: 400 })
   }
 
-  // Fetch primary company + features
   const { data: primaryCompany } = await supabase
     .from('companies')
-    .select('*, company_features(*)')
+    .select('name')
     .eq('id', primary_company_id)
     .eq('user_id', user.id)
     .single()
 
   if (!primaryCompany) return NextResponse.json({ error: 'Company not found' }, { status: 404 })
 
-  // Fetch competitor companies in a single batch query
   const { data: competitorRows } = await supabase
     .from('companies')
-    .select('*, company_features(*)')
+    .select('name')
     .in('id', competitor_ids)
     .eq('user_id', user.id)
 
-  const competitorData = (competitorRows ?? []).map(comp => ({
-    name: comp.name,
-    features: comp.company_features,
-  }))
+  const name = comparison_name ||
+    `${primaryCompany.name} vs ${(competitorRows ?? []).map(c => c.name).join(', ')}`
 
-  if (competitorData.length === 0) {
-    return NextResponse.json({ error: 'No valid competitor companies found' }, { status: 400 })
-  }
-
-  // Insert a pending record immediately so the user can be redirected right away
   const { data: comparison, error: insertError } = await supabase
     .from('comparisons')
     .insert({
       user_id: user.id,
       primary_company_id,
-      name: comparison_name || `${primaryCompany.name} vs ${competitorData.map(c => c.name).join(', ')}`,
+      name,
       competitor_company_ids: competitor_ids,
       report_data: { status: 'pending' },
     })
@@ -56,25 +45,6 @@ export async function POST(request: Request) {
   if (insertError || !comparison) {
     return NextResponse.json({ error: insertError?.message ?? 'Failed to create comparison' }, { status: 500 })
   }
-
-  // Generate the report in the background after the response is sent
-  after(async () => {
-    try {
-      const report = await generateComparisonReport(
-        { name: primaryCompany.name, features: primaryCompany.company_features },
-        competitorData
-      )
-      await supabase
-        .from('comparisons')
-        .update({ report_data: { status: 'complete', ...report } })
-        .eq('id', comparison.id)
-    } catch (err) {
-      await supabase
-        .from('comparisons')
-        .update({ report_data: { status: 'error', error: String(err) } })
-        .eq('id', comparison.id)
-    }
-  })
 
   return NextResponse.json({ comparison_id: comparison.id })
 }
