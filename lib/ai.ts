@@ -5,9 +5,11 @@ import { RATING_SCORES } from './types'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 function parseJSON(text: string) {
-  // Strip markdown code fences (```json ... ``` or ``` ... ```)
-  const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
-  return JSON.parse(stripped)
+  // Find the outermost JSON object or array, ignoring any surrounding prose or code fences
+  const start = text.search(/[{[]/)
+  const end = Math.max(text.lastIndexOf('}'), text.lastIndexOf(']'))
+  if (start === -1 || end === -1) throw new Error('No JSON found in AI response')
+  return JSON.parse(text.slice(start, end + 1))
 }
 
 // ─── Feature Extraction ──────────────────────────────────────────────────────
@@ -103,12 +105,6 @@ export async function generateComparisonReport(
   competitors: { name: string; features: CompanyFeature[] }[],
   context?: string
 ): Promise<ComparisonReport> {
-  // Build feature matrix from DB data
-  const allFeatureNames = new Set<string>()
-  primaryCompany.features.forEach(f => allFeatureNames.add(f.feature_name))
-  competitors.forEach(c => c.features.forEach(f => allFeatureNames.add(f.feature_name)))
-
-  // For features a company doesn't have, we'll ask AI to infer them
   const companiesForPrompt = [
     { name: primaryCompany.name, features: primaryCompany.features },
     ...competitors,
@@ -169,6 +165,10 @@ Return ONLY the JSON object, no markdown, no extra text.`
     max_tokens: 8192,
     messages: [{ role: 'user', content: prompt }],
   })
+
+  if (message.stop_reason === 'max_tokens') {
+    throw new Error('AI response was truncated (too many features/competitors — reduce scope and try again)')
+  }
 
   const text = message.content[0].type === 'text' ? message.content[0].text : ''
   const aiReport = parseJSON(text)

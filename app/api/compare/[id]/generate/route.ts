@@ -86,7 +86,7 @@ export async function POST(
   } catch (err) {
     await supabase
       .from('comparisons')
-      .update({ report_data: { status: 'error', error: String(err) } })
+      .update({ report_data: { status: 'error', error: String(err), context } })
       .eq('id', id)
   }
 
