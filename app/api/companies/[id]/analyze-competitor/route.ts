@@ -12,7 +12,7 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { competitor_name } = await request.json()
+  const { competitor_name, competitor_website } = await request.json()
   if (!competitor_name) return NextResponse.json({ error: 'competitor_name required' }, { status: 400 })
 
   // Check if we already have this company tracked
@@ -35,11 +35,11 @@ export async function POST(
   }
 
   // Create new company record for this competitor
-  const { features, industry, description } = await extractCompanyFeatures(competitor_name)
+  const { features, industry, description } = await extractCompanyFeatures(competitor_name, competitor_website)
 
   const { data: newCompany, error: companyError } = await supabase
     .from('companies')
-    .insert({ user_id: user.id, name: competitor_name, industry, description })
+    .insert({ user_id: user.id, name: competitor_name, website: competitor_website || null, industry, description })
     .select()
     .single()
 

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Building2, Plus, RefreshCw, GitCompare, Loader2, Check, X,
-  Trash2, History, ExternalLink, ChevronDown, ChevronUp
+  Trash2, History, ExternalLink, ChevronDown, ChevronUp, Globe
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -59,12 +59,18 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
     }
   }
 
-  async function handleAnalyzeCompetitor(competitor: Competitor) {
+  async function handleDeleteCompany() {
+    if (!confirm(`Delete ${company.name}? This will also remove all its features, competitors, and comparisons.`)) return
+    const res = await fetch(`/api/companies/${company.id}`, { method: 'DELETE' })
+    if (res.ok) router.push('/dashboard')
+  }
+
+  async function handleAnalyzeCompetitor(competitor: Competitor, website?: string) {
     setAnalyzingCompetitors(prev => new Set([...prev, competitor.id]))
     const res = await fetch(`/api/companies/${company.id}/analyze-competitor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ competitor_name: competitor.competitor_name }),
+      body: JSON.stringify({ competitor_name: competitor.competitor_name, competitor_website: website }),
     })
     if (res.ok) {
       const data = await res.json()
@@ -175,6 +181,11 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleDeleteCompany}
+            className="text-red-500 hover:text-red-600 hover:border-red-300">
+            <Trash2 className="h-4 w-4" />
+            <span className="ml-1.5">Delete</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
             {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             <span className="ml-1.5">Refresh</span>
@@ -406,51 +417,89 @@ function CompetitorRow({
   competitor: Competitor
   isAnalyzing: boolean
   onToggle: (c: Competitor) => void
-  onAnalyze: (c: Competitor) => void
+  onAnalyze: (c: Competitor, website?: string) => void
   onDelete: (id: string) => void
 }) {
+  const [showWebsiteInput, setShowWebsiteInput] = useState(false)
+  const [website, setWebsite] = useState('')
+
+  function handleAnalyzeClick() {
+    setShowWebsiteInput(true)
+  }
+
+  function handleConfirmAnalyze() {
+    setShowWebsiteInput(false)
+    onAnalyze(competitor, website.trim() || undefined)
+  }
+
   return (
     <div className={cn(
-      'flex items-center gap-2 rounded-lg border p-2.5 transition-all',
+      'rounded-lg border transition-all',
       competitor.is_selected ? 'border-indigo-200 bg-indigo-50' : 'border-slate-100'
     )}>
-      <button
-        onClick={() => onToggle(competitor)}
-        className={cn(
-          'h-5 w-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all',
-          competitor.is_selected
-            ? 'border-indigo-500 bg-indigo-500'
-            : 'border-slate-300 bg-white'
-        )}
-      >
-        {competitor.is_selected && <Check className="h-3 w-3 text-white" />}
-      </button>
-
-      <span className="text-sm text-slate-800 flex-1 truncate">{competitor.competitor_name}</span>
-
-      {competitor.is_selected && !competitor.competitor_company_id && (
+      <div className="flex items-center gap-2 p-2.5">
         <button
-          onClick={() => onAnalyze(competitor)}
-          disabled={isAnalyzing}
-          className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex-shrink-0 flex items-center gap-1"
+          onClick={() => onToggle(competitor)}
+          className={cn(
+            'h-5 w-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all',
+            competitor.is_selected
+              ? 'border-indigo-500 bg-indigo-500'
+              : 'border-slate-300 bg-white'
+          )}
         >
-          {isAnalyzing ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-          {isAnalyzing ? 'Loading...' : 'Analyze'}
+          {competitor.is_selected && <Check className="h-3 w-3 text-white" />}
         </button>
-      )}
 
-      {competitor.competitor_company_id && (
-        <span className="text-xs text-emerald-600 flex items-center gap-0.5 flex-shrink-0">
-          <Check className="h-3 w-3" /> Ready
-        </span>
-      )}
+        <span className="text-sm text-slate-800 flex-1 truncate">{competitor.competitor_name}</span>
 
-      <button
-        onClick={() => onDelete(competitor.id)}
-        className="text-slate-300 hover:text-red-400 transition-colors p-0.5 flex-shrink-0"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
+        {competitor.is_selected && !competitor.competitor_company_id && !showWebsiteInput && (
+          <button
+            onClick={handleAnalyzeClick}
+            disabled={isAnalyzing}
+            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex-shrink-0 flex items-center gap-1"
+          >
+            {isAnalyzing ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            {isAnalyzing ? 'Loading...' : 'Analyze'}
+          </button>
+        )}
+
+        {competitor.competitor_company_id && (
+          <span className="text-xs text-emerald-600 flex items-center gap-0.5 flex-shrink-0">
+            <Check className="h-3 w-3" /> Ready
+          </span>
+        )}
+
+        <button
+          onClick={() => onDelete(competitor.id)}
+          className="text-slate-300 hover:text-red-400 transition-colors p-0.5 flex-shrink-0"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {showWebsiteInput && (
+        <div className="px-2.5 pb-2.5 space-y-2">
+          <div className="relative">
+            <Globe className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Input
+              placeholder="Website (optional, improves accuracy)"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleConfirmAnalyze()}
+              className="pl-8 text-xs h-8"
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-1.5">
+            <Button size="sm" variant="primary" onClick={handleConfirmAnalyze} className="text-xs h-7 px-2.5">
+              Analyze
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowWebsiteInput(false)} className="text-xs h-7 px-2.5">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
