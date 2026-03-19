@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { Comparison, ComparisonReport, FeatureMatrixRow, GapItem, Rating } from '@/lib/types'
 import { RATING_LABELS, RATING_SCORES, RATING_COLORS } from '@/lib/types'
@@ -20,11 +21,15 @@ const PdfDownloadButton = dynamic(
 
 const CHART_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6']
 
+// Column header colors for the positioning matrix (primary first, then competitors)
+const MATRIX_COL_COLORS = ['#4a90d9', '#d94a4a', '#2aa198', '#8e44ad', '#27ae60', '#e67e22', '#c0392b']
+
 interface Props {
   comparison: Comparison
 }
 
 export function ComparisonDashboard({ comparison }: Props) {
+  const [activeTab, setActiveTab] = useState<'analysis' | 'matrix'>('analysis')
   const report = comparison.report_data as ComparisonReport
   const allCompanies = [report.primary_company, ...report.competitors]
   // Build radar chart data (top 8 features for readability)
@@ -49,7 +54,7 @@ export function ComparisonDashboard({ comparison }: Props) {
   return (
     <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{comparison.name}</h1>
           <p className="text-slate-500 text-sm mt-1">
@@ -59,6 +64,36 @@ export function ComparisonDashboard({ comparison }: Props) {
         </div>
         <PdfDownloadButton comparison={comparison} />
       </div>
+
+      {/* Tab switcher */}
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('analysis')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'analysis'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Analysis
+        </button>
+        <button
+          onClick={() => setActiveTab('matrix')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'matrix'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Positioning Matrix
+        </button>
+      </div>
+
+      {activeTab === 'matrix' && (
+        <PositioningMatrix report={report} allCompanies={allCompanies} />
+      )}
+
+      {activeTab === 'analysis' && (<>
 
       {/* Executive Summary */}
       <Card className="mb-6 border-l-4 border-l-indigo-500">
@@ -239,7 +274,111 @@ export function ComparisonDashboard({ comparison }: Props) {
           </CardContent>
         </Card>
       )}
+      </>)}
     </main>
+  )
+}
+
+function MatrixIcon({ rating }: { rating: Rating | null }) {
+  if (!rating) return <span className="text-slate-300 text-lg">—</span>
+  if (rating === 'best_at' || rating === 'good_at') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-6 w-6 mx-auto" fill="none" stroke="#27ae60" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    )
+  }
+  if (rating === 'bad_at' || rating === 'mediocre_at') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-6 w-6 mx-auto" fill="none" stroke="#e74c3c" strokeWidth="2.5" strokeLinecap="round">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    )
+  }
+  // okay_at — half-filled circle
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6 mx-auto">
+      <path d="M12 3 A9 9 0 0 1 12 21 Z" fill="#c0780a" />
+      <circle cx="12" cy="12" r="9" fill="none" stroke="#c0780a" strokeWidth="2" />
+    </svg>
+  )
+}
+
+function PositioningMatrix({ report, allCompanies }: { report: ComparisonReport; allCompanies: string[] }) {
+  return (
+    <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+      {/* Banner header */}
+      <div className="bg-[#1a2e4a] px-8 py-5 flex items-center justify-between">
+        <h2 className="text-white text-xl font-bold tracking-tight">
+          Competitive Positioning — {report.primary_company} vs. The Market
+        </h2>
+        <span className="text-slate-400 text-sm">{new Date(report.generated_at).toLocaleDateString()}</span>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto bg-white">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr>
+              <th className="w-52 min-w-[180px]" />
+              {allCompanies.map((company, i) => (
+                <th key={company} className="min-w-[120px] px-2 py-3 text-center">
+                  <span
+                    className="inline-block px-4 py-1.5 rounded-md text-white text-sm font-semibold w-full"
+                    style={{ backgroundColor: MATRIX_COL_COLORS[i % MATRIX_COL_COLORS.length] }}
+                  >
+                    {company}
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {report.feature_matrix.map((row, idx) => {
+              const primaryRating = row.ratings[report.primary_company] as Rating | null
+              const primaryScore = primaryRating ? RATING_SCORES[primaryRating] : 0
+              const isGap = row.gap_flag
+              return (
+                <tr
+                  key={idx}
+                  className={`border-t border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
+                >
+                  <td className="px-6 py-3 font-medium text-slate-800 text-sm">{row.feature_name}</td>
+                  {allCompanies.map((company, i) => {
+                    const rating = row.ratings[company] as Rating | null
+                    const score = rating ? RATING_SCORES[rating] : 0
+                    const isPrimary = i === 0
+                    const cellBg = isPrimary
+                      ? isGap ? 'bg-amber-50' : 'bg-green-50/60'
+                      : score > primaryScore ? 'bg-red-50/50' : ''
+                    return (
+                      <td key={company} className={`px-2 py-3 text-center ${cellBg}`}>
+                        <MatrixIcon rating={rating} />
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend */}
+      <div className="bg-slate-50 border-t border-slate-100 px-6 py-3 flex items-center gap-6">
+        <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">Legend</span>
+        <span className="flex items-center gap-1.5 text-xs text-slate-600">
+          <MatrixIcon rating="good_at" /> Strong
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-slate-600">
+          <MatrixIcon rating="okay_at" /> Partial
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-slate-600">
+          <MatrixIcon rating="bad_at" /> Weak / Missing
+        </span>
+      </div>
+    </div>
   )
 }
 
