@@ -35,6 +35,7 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
   const [newFeatureRating, setNewFeatureRating] = useState<typeof RATINGS[number]>('okay_at')
   const [newCompetitorName, setNewCompetitorName] = useState('')
   const [analyzingCompetitors, setAnalyzingCompetitors] = useState<Set<string>>(new Set())
+  const [compareStatus, setCompareStatus] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
 
   const selectedCompetitors = competitors.filter(c => c.is_selected)
@@ -65,8 +66,9 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
     if (res.ok) router.push('/dashboard')
   }
 
-  async function handleAnalyzeCompetitor(competitor: Competitor, website?: string) {
+  async function handleAnalyzeCompetitor(competitor: Competitor, website?: string): Promise<string | null> {
     setAnalyzingCompetitors(prev => new Set([...prev, competitor.id]))
+    let companyId: string | null = null
     const res = await fetch(`/api/companies/${company.id}/analyze-competitor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -74,6 +76,7 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
     })
     if (res.ok) {
       const data = await res.json()
+      companyId = data.company_id
       setCompetitors(prev =>
         prev.map(c => c.id === competitor.id
           ? { ...c, competitor_company_id: data.company_id, is_selected: true }
@@ -86,6 +89,7 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
       next.delete(competitor.id)
       return next
     })
+    return companyId
   }
 
   async function handleAddCompetitor() {
@@ -136,26 +140,51 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
   async function handleCompare() {
     if (selectedCompetitors.length === 0) return
 
-    // Ensure all selected competitors have been analyzed (have company IDs)
+    setComparing(true)
+
+    // Auto-analyze any selected competitors that don't yet have a profile
     const unanalyzed = selectedCompetitors.filter(c => !c.competitor_company_id)
+    const knownIds: Record<string, string> = {}
+
     if (unanalyzed.length > 0) {
-      alert(`Please click "Analyze" on each selected competitor first to load their data.`)
+      setCompareStatus(`Creating profiles for ${unanalyzed.length} competitor${unanalyzed.length > 1 ? 's' : ''}…`)
+      const results = await Promise.all(
+        unanalyzed.map(async c => {
+          const id = await handleAnalyzeCompetitor(c)
+          return { competitorId: c.id, companyId: id }
+        })
+      )
+      for (const { competitorId, companyId } of results) {
+        if (companyId) knownIds[competitorId] = companyId
+      }
+    }
+
+    setCompareStatus('Generating comparison report…')
+
+    // Build final list of competitor_company_ids, merging already-known and newly analyzed
+    const competitorIds = selectedCompetitors
+      .map(c => c.competitor_company_id ?? knownIds[c.id])
+      .filter((id): id is string => Boolean(id))
+
+    if (competitorIds.length === 0) {
+      setCompareStatus(null)
+      setComparing(false)
       return
     }
 
-    setComparing(true)
     const res = await fetch('/api/compare', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         primary_company_id: company.id,
-        competitor_ids: selectedCompetitors.map(c => c.competitor_company_id).filter(Boolean),
+        competitor_ids: competitorIds,
       }),
     })
     if (res.ok) {
       const data = await res.json()
       router.push(`/compare/${data.comparison_id}`)
     } else {
+      setCompareStatus(null)
       setComparing(false)
     }
   }
@@ -194,7 +223,7 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
             <Button variant="primary" size="sm" onClick={handleCompare} disabled={comparing}
               className="flex items-center gap-1.5">
               {comparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitCompare className="h-4 w-4" />}
-              Compare ({selectedCompetitors.length})
+              {comparing ? (compareStatus ?? 'Working…') : `Compare (${selectedCompetitors.length})`}
             </Button>
           )}
         </div>
@@ -351,11 +380,13 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
                     disabled={comparing}
                   >
                     {comparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitCompare className="h-4 w-4" />}
-                    Run Comparison ({selectedCompetitors.length} selected)
+                    {comparing ? (compareStatus ?? 'Working…') : `Run Comparison (${selectedCompetitors.length} selected)`}
                   </Button>
-                  <p className="text-xs text-slate-400 text-center mt-2">
-                    Unanalyzed competitors will be loaded first
-                  </p>
+                  {!comparing && selectedCompetitors.some(c => !c.competitor_company_id) && (
+                    <p className="text-xs text-amber-600 text-center mt-2">
+                      {selectedCompetitors.filter(c => !c.competitor_company_id).length} competitor profile{selectedCompetitors.filter(c => !c.competitor_company_id).length > 1 ? 's' : ''} will be created automatically
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>
