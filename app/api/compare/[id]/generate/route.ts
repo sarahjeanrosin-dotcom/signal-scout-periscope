@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { generateComparisonReport } from '@/lib/ai'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 
 export async function POST(
   _request: Request,
@@ -72,23 +72,27 @@ export async function POST(
     ? comparison.report_data.context
     : undefined
 
-  try {
-    const report = await generateComparisonReport(
-      { name: primaryCompany.name, features: primaryCompany.company_features },
-      competitorData,
-      context
-    )
+  // Run the AI call after the response is sent so this route returns immediately.
+  // The client polls every 4 seconds and will pick up the status change.
+  after(async () => {
+    try {
+      const report = await generateComparisonReport(
+        { name: primaryCompany.name, features: primaryCompany.company_features },
+        competitorData,
+        context
+      )
 
-    await supabase
-      .from('comparisons')
-      .update({ report_data: { status: 'complete', ...report } })
-      .eq('id', id)
-  } catch (err) {
-    await supabase
-      .from('comparisons')
-      .update({ report_data: { status: 'error', error: String(err), context } })
-      .eq('id', id)
-  }
+      await supabase
+        .from('comparisons')
+        .update({ report_data: { status: 'complete', ...report } })
+        .eq('id', id)
+    } catch (err) {
+      await supabase
+        .from('comparisons')
+        .update({ report_data: { status: 'error', error: String(err), context } })
+        .eq('id', id)
+    }
+  })
 
   return NextResponse.json({ ok: true })
 }
