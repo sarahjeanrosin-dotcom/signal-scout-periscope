@@ -291,7 +291,7 @@ function RatingBadgeWithTooltip({
   rationale?: string | null
 }) {
   const [open, setOpen] = useState(false)
-  const closeTimer = useRef<ReturnType<typeof setTimeout>>()
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasSources = sources && sources.length > 0
   const hasContent = hasSources || !!rationale
 
