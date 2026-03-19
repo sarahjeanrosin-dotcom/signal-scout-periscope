@@ -15,12 +15,21 @@ export function ComparisonPending({ comparisonId }: { comparisonId: string }) {
     // Poll every 4 seconds as a fallback in case the generate call stalls
     const poll = setInterval(() => router.refresh(), 4000)
 
-    // Kick off the long-running AI generation from the browser — this keeps
-    // the HTTP connection alive for as long as the AI needs, with no timeout
-    fetch(`/api/compare/${comparisonId}/generate`, { method: 'POST' })
-      .then(() => router.refresh())
-      .catch(() => router.refresh())
-      .finally(() => clearInterval(poll))
+    // Kick off the long-running AI generation from the browser.  On a
+    // network failure (e.g. a platform-level function timeout), retry after
+    // 10 s so the component never gets permanently stuck.
+    function generate() {
+      fetch(`/api/compare/${comparisonId}/generate`, { method: 'POST' })
+        .then(() => {
+          clearInterval(poll)
+          router.refresh()
+        })
+        .catch(() => {
+          setTimeout(generate, 10_000)
+        })
+    }
+
+    generate()
 
     return () => clearInterval(poll)
   }, [comparisonId, router])
