@@ -22,7 +22,7 @@ export default async function ComparePage({ params }: { params: Promise<{ id: st
   return (
     <div className="min-h-screen">
       <Nav />
-      {report.status === 'pending' && (
+      {(report.status === 'pending' || report.status === 'generating') && (
         <ComparisonPending comparisonId={id} />
       )}
       {report.status === 'error' && (

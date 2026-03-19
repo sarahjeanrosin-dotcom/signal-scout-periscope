@@ -59,10 +59,11 @@ export interface Competitor {
   created_at: string
 }
 
-export type PendingReport = { status: 'pending' }
-export type ErrorReport  = { status: 'error'; error: string }
-export type CompletedReport = ComparisonReport & { status: 'complete' }
-export type ReportData = PendingReport | ErrorReport | CompletedReport
+export type PendingReport    = { status: 'pending' }
+export type GeneratingReport = { status: 'generating' }
+export type ErrorReport      = { status: 'error'; error: string }
+export type CompletedReport  = ComparisonReport & { status: 'complete' }
+export type ReportData = PendingReport | GeneratingReport | ErrorReport | CompletedReport
 
 export interface Comparison {
   id: string

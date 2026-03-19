@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { generateComparisonReport } from '@/lib/ai'
 import { NextResponse } from 'next/server'
+import { after } from 'next/server'
 
 export const maxDuration = 300
 
@@ -14,7 +15,7 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Verify the comparison belongs to this user and is still pending
+  // Verify the comparison belongs to this user
   const { data: comparison } = await supabase
     .from('comparisons')
     .select('*')
@@ -24,8 +25,9 @@ export async function POST(
 
   if (!comparison) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // If already complete, nothing to do
-  if (comparison.report_data?.status === 'complete') {
+  // Already done or already in-flight — nothing to do
+  if (comparison.report_data?.status === 'complete' ||
+      comparison.report_data?.status === 'generating') {
     return NextResponse.json({ ok: true })
   }
 
@@ -50,34 +52,42 @@ export async function POST(
     return NextResponse.json({ error: 'Primary company not found' }, { status: 404 })
   }
 
+  // Mark as generating so concurrent retries don't spawn duplicate jobs
+  await supabase
+    .from('comparisons')
+    .update({ report_data: { ...comparison.report_data, status: 'generating' } })
+    .eq('id', id)
+
   const competitorData = (competitorRows ?? []).map(c => ({
     name: c.name,
     features: c.company_features,
   }))
 
-  try {
-    const context = typeof comparison.report_data?.context === 'string'
-      ? comparison.report_data.context
-      : undefined
+  const context = typeof comparison.report_data?.context === 'string'
+    ? comparison.report_data.context
+    : undefined
 
-    const report = await generateComparisonReport(
-      { name: primaryCompany.name, features: primaryCompany.company_features },
-      competitorData,
-      context
-    )
+  // Run the AI work after the response is sent so the HTTP connection stays
+  // short and isn't killed by a platform function timeout.
+  after(async () => {
+    try {
+      const report = await generateComparisonReport(
+        { name: primaryCompany.name, features: primaryCompany.company_features },
+        competitorData,
+        context
+      )
 
-    await supabase
-      .from('comparisons')
-      .update({ report_data: { status: 'complete', ...report } })
-      .eq('id', id)
+      await supabase
+        .from('comparisons')
+        .update({ report_data: { status: 'complete', ...report } })
+        .eq('id', id)
+    } catch (err) {
+      await supabase
+        .from('comparisons')
+        .update({ report_data: { status: 'error', error: String(err) } })
+        .eq('id', id)
+    }
+  })
 
-    return NextResponse.json({ ok: true })
-  } catch (err) {
-    await supabase
-      .from('comparisons')
-      .update({ report_data: { status: 'error', error: String(err) } })
-      .eq('id', id)
-
-    return NextResponse.json({ error: String(err) }, { status: 500 })
-  }
+  return NextResponse.json({ ok: true })
 }
