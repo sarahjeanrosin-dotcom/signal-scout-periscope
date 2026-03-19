@@ -45,7 +45,7 @@ Extract 8-15 features. Focus on capabilities visible to clients: product feature
 Return ONLY the JSON object, no markdown, no extra text.`
 
   const message = await anthropic.messages.create({
-    model: 'claude-opus-4-6',
+    model: 'claude-sonnet-4-6',
     max_tokens: 4096,
     messages: [{ role: 'user', content: prompt }],
   })
@@ -81,7 +81,7 @@ Return a JSON array with this exact structure:
 Return ONLY the JSON array, no markdown, no extra text.`
 
   const message = await anthropic.messages.create({
-    model: 'claude-opus-4-6',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 1024,
     messages: [{ role: 'user', content: prompt }],
   })
@@ -158,7 +158,7 @@ Rules:
 Return ONLY the JSON object, no markdown, no extra text.`
 
   const message = await anthropic.messages.create({
-    model: 'claude-opus-4-6',
+    model: 'claude-sonnet-4-6',
     max_tokens: 8192,
     messages: [{ role: 'user', content: prompt }],
   })

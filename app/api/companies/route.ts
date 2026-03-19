@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { extractCompanyFeatures, discoverCompetitors } from '@/lib/ai'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -28,40 +28,41 @@ export async function POST(request: Request) {
 
     if (companyError) throw companyError
 
-    // 3. Insert features
-    if (features.length > 0) {
-      const featureRows = features.map(f => ({
-        company_id: company.id,
-        feature_name: f.feature_name,
-        description: f.description,
-        rating: f.rating,
-        rating_rationale: f.rating_rationale,
-        source: 'ai',
-      }))
-      await supabase.from('company_features').insert(featureRows)
-    }
-
-    // 4. Save initial snapshot
-    await supabase.from('feature_snapshots').insert({
+    // 3. Insert features + snapshot in parallel
+    const featureRows = features.map(f => ({
       company_id: company.id,
-      features,
-      triggered_by: 'manual',
+      feature_name: f.feature_name,
+      description: f.description,
+      rating: f.rating,
+      rating_rationale: f.rating_rationale,
+      source: 'ai',
+    }))
+    await Promise.all([
+      features.length > 0 ? supabase.from('company_features').insert(featureRows) : Promise.resolve(),
+      supabase.from('feature_snapshots').insert({ company_id: company.id, features, triggered_by: 'manual' }),
+    ])
+
+    // 4. Discover competitors after response is sent
+    const companyId = company.id
+    after(async () => {
+      try {
+        const discovered = await discoverCompetitors(name.trim(), industry)
+        if (discovered.length > 0) {
+          await supabase.from('competitors').insert(
+            discovered.map(c => ({
+              company_id: companyId,
+              competitor_name: c.name,
+              is_user_added: false,
+              is_selected: false,
+            }))
+          )
+        }
+      } catch (err) {
+        console.error('Error discovering competitors:', err)
+      }
     })
 
-    // 5. Discover competitors
-    const discovered = await discoverCompetitors(name.trim(), industry)
-    if (discovered.length > 0) {
-      await supabase.from('competitors').insert(
-        discovered.map(c => ({
-          company_id: company.id,
-          competitor_name: c.name,
-          is_user_added: false,
-          is_selected: false,
-        }))
-      )
-    }
-
-    return NextResponse.json({ company, featuresCount: features.length, competitorsCount: discovered.length })
+    return NextResponse.json({ company, featuresCount: features.length })
   } catch (err) {
     console.error('Error creating company:', err)
     return NextResponse.json({ error: 'Failed to analyze company. Please try again.' }, { status: 500 })

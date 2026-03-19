@@ -23,21 +23,17 @@ export async function POST(request: Request) {
 
   if (!primaryCompany) return NextResponse.json({ error: 'Company not found' }, { status: 404 })
 
-  // Fetch or create competitor companies
-  const competitorData: { name: string; features: any[] }[] = []
+  // Fetch competitor companies in a single batch query
+  const { data: competitorRows } = await supabase
+    .from('companies')
+    .select('*, company_features(*)')
+    .in('id', competitor_ids)
+    .eq('user_id', user.id)
 
-  for (const compId of competitor_ids) {
-    const { data: comp } = await supabase
-      .from('companies')
-      .select('*, company_features(*)')
-      .eq('id', compId)
-      .eq('user_id', user.id)
-      .single()
-
-    if (comp) {
-      competitorData.push({ name: comp.name, features: comp.company_features })
-    }
-  }
+  const competitorData = (competitorRows ?? []).map(comp => ({
+    name: comp.name,
+    features: comp.company_features,
+  }))
 
   if (competitorData.length === 0) {
     return NextResponse.json({ error: 'No valid competitor companies found' }, { status: 400 })
