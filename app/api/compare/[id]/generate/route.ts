@@ -3,7 +3,11 @@ import { generateComparisonReport } from '@/lib/ai'
 import { NextResponse } from 'next/server'
 import { after } from 'next/server'
 
-export const maxDuration = 300
+// Run this route as a Netlify Edge Function so that next/after() passes the
+// AI work to context.waitUntil() — making it truly fire-and-forget.
+// On the Node.js (Lambda) runtime, after() falls back to backgroundWorkPromises
+// which are awaited before the connection closes, so the Lambda still times out.
+export const runtime = 'edge'
 
 export async function POST(
   _request: Request,
@@ -25,9 +29,17 @@ export async function POST(
 
   if (!comparison) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Already done or already in-flight — nothing to do
-  if (comparison.report_data?.status === 'complete' ||
-      comparison.report_data?.status === 'generating') {
+  // Already done — nothing to do
+  if (comparison.report_data?.status === 'complete') {
+    return NextResponse.json({ ok: true })
+  }
+
+  // If stuck at 'generating' for more than 3 minutes, allow a retry
+  const isStaleGenerating =
+    comparison.report_data?.status === 'generating' &&
+    Date.now() - new Date(comparison.updated_at).getTime() > 3 * 60 * 1000
+
+  if (comparison.report_data?.status === 'generating' && !isStaleGenerating) {
     return NextResponse.json({ ok: true })
   }
 
@@ -52,7 +64,7 @@ export async function POST(
     return NextResponse.json({ error: 'Primary company not found' }, { status: 404 })
   }
 
-  // Mark as generating so concurrent retries don't spawn duplicate jobs
+  // Mark as generating to prevent duplicate concurrent jobs
   await supabase
     .from('comparisons')
     .update({ report_data: { ...comparison.report_data, status: 'generating' } })
@@ -67,8 +79,8 @@ export async function POST(
     ? comparison.report_data.context
     : undefined
 
-  // Run the AI work after the response is sent so the HTTP connection stays
-  // short and isn't killed by a platform function timeout.
+  // On Edge runtime, after() passes the promise to context.waitUntil() so the
+  // HTTP response is sent immediately and the AI runs in the background.
   after(async () => {
     try {
       const report = await generateComparisonReport(
