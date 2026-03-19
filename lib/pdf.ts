@@ -280,8 +280,8 @@ const RATING_SHORT: Record<Rating, string> = {
   best_at: 'Best',
   good_at: 'Good',
   okay_at: 'Okay',
-  mediocre_at: 'Fair',
-  bad_at: 'Weak',
+  mediocre_at: 'Bad',
+  bad_at: 'Bad',
 }
 
 export async function generateMatrixPDF(comparison: Comparison) {

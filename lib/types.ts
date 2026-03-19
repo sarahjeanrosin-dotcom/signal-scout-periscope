@@ -1,11 +1,11 @@
 export type Rating = 'best_at' | 'good_at' | 'okay_at' | 'mediocre_at' | 'bad_at'
 
 export const RATING_LABELS: Record<Rating, string> = {
-  best_at: 'Best At',
-  good_at: 'Good At',
-  okay_at: 'Okay At',
-  mediocre_at: 'Mediocre At',
-  bad_at: 'Bad At',
+  best_at: 'Best',
+  good_at: 'Good',
+  okay_at: 'Okay',
+  mediocre_at: 'Bad',
+  bad_at: 'Bad',
 }
 
 export const RATING_SCORES: Record<Rating, number> = {
