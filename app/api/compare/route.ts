@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { primary_company_id, competitor_ids, comparison_name } = await request.json()
+  const { primary_company_id, competitor_ids, comparison_name, context } = await request.json()
 
   if (!primary_company_id || !competitor_ids?.length) {
     return NextResponse.json({ error: 'Primary company and at least one competitor required' }, { status: 400 })
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       primary_company_id,
       name,
       competitor_company_ids: competitor_ids,
-      report_data: { status: 'pending' },
+      report_data: { status: 'pending', ...(context ? { context } : {}) },
     })
     .select()
     .single()

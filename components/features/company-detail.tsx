@@ -37,6 +37,7 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
   const [analyzingCompetitors, setAnalyzingCompetitors] = useState<Set<string>>(new Set())
   const [compareStatus, setCompareStatus] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [compareContext, setCompareContext] = useState('')
 
   const selectedCompetitors = competitors.filter(c => c.is_selected)
 
@@ -178,6 +179,7 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
       body: JSON.stringify({
         primary_company_id: company.id,
         competitor_ids: competitorIds,
+        ...(compareContext.trim() ? { context: compareContext.trim() } : {}),
       }),
     })
     if (res.ok) {
@@ -372,7 +374,20 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
               </div>
 
               {selectedCompetitors.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-slate-100">
+                <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">
+                      Focus / context <span className="font-normal text-slate-400">(optional)</span>
+                    </label>
+                    <textarea
+                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                      rows={3}
+                      placeholder="e.g. Focus on enterprise pricing, ignore consumer features. We're targeting mid-market SaaS companies."
+                      value={compareContext}
+                      onChange={(e) => setCompareContext(e.target.value)}
+                      disabled={comparing}
+                    />
+                  </div>
                   <Button
                     variant="primary"
                     className="w-full flex items-center gap-2"
@@ -383,7 +398,7 @@ export function CompanyDetail({ company, initialFeatures, initialCompetitors, sn
                     {comparing ? (compareStatus ?? 'Working…') : `Run Comparison (${selectedCompetitors.length} selected)`}
                   </Button>
                   {!comparing && selectedCompetitors.some(c => !c.competitor_company_id) && (
-                    <p className="text-xs text-amber-600 text-center mt-2">
+                    <p className="text-xs text-amber-600 text-center">
                       {selectedCompetitors.filter(c => !c.competitor_company_id).length} competitor profile{selectedCompetitors.filter(c => !c.competitor_company_id).length > 1 ? 's' : ''} will be created automatically
                     </p>
                   )}

@@ -56,9 +56,14 @@ export async function POST(
   }))
 
   try {
+    const context = typeof comparison.report_data?.context === 'string'
+      ? comparison.report_data.context
+      : undefined
+
     const report = await generateComparisonReport(
       { name: primaryCompany.name, features: primaryCompany.company_features },
-      competitorData
+      competitorData,
+      context
     )
 
     await supabase

@@ -95,7 +95,8 @@ Return ONLY the JSON array, no markdown, no extra text.`
 
 export async function generateComparisonReport(
   primaryCompany: { name: string; features: CompanyFeature[] },
-  competitors: { name: string; features: CompanyFeature[] }[]
+  competitors: { name: string; features: CompanyFeature[] }[],
+  context?: string
 ): Promise<ComparisonReport> {
   // Build feature matrix from DB data
   const allFeatureNames = new Set<string>()
@@ -108,7 +109,7 @@ export async function generateComparisonReport(
     ...competitors,
   ]
 
-  const prompt = `You are a competitive intelligence analyst. Based on the feature data below, generate a comprehensive competitive comparison report.
+  const prompt = `You are a competitive intelligence analyst. Based on the feature data below, generate a comprehensive competitive comparison report.${context ? `\n\nThe user has provided the following focus or context for this report: "${context}". Weight your analysis, recommendations, and gap prioritization accordingly.` : ''}
 
 Companies and their known features:
 ${JSON.stringify(companiesForPrompt.map(c => ({
