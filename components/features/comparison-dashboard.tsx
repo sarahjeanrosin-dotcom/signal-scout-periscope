@@ -18,6 +18,10 @@ const PdfDownloadButton = dynamic(
   () => import('@/components/features/pdf-download-button').then(m => ({ default: m.PdfDownloadButton })),
   { ssr: false, loading: () => <Button variant="outline" disabled>Loading PDF...</Button> }
 )
+const MatrixPdfDownloadButton = dynamic(
+  () => import('@/components/features/matrix-pdf-download-button').then(m => ({ default: m.MatrixPdfDownloadButton })),
+  { ssr: false, loading: () => <Button variant="outline" disabled>Loading...</Button> }
+)
 
 const CHART_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6']
 
@@ -90,7 +94,12 @@ export function ComparisonDashboard({ comparison }: Props) {
       </div>
 
       {activeTab === 'matrix' && (
-        <PositioningMatrix report={report} allCompanies={allCompanies} />
+        <div>
+          <div className="flex justify-end mb-3">
+            <MatrixPdfDownloadButton comparison={comparison} />
+          </div>
+          <PositioningMatrix report={report} allCompanies={allCompanies} />
+        </div>
       )}
 
       {activeTab === 'analysis' && (<>

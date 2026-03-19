@@ -211,23 +211,37 @@ export async function generatePDF(comparison: Comparison) {
       const severity = gap.gap_score >= 3 ? 'High' : gap.gap_score >= 2 ? 'Medium' : 'Low'
       const severityColor: [number, number, number] = gap.gap_score >= 3 ? [239, 68, 68] : gap.gap_score >= 2 ? [245, 158, 11] : [59, 130, 246]
 
+      // Measure badge width first so we can reserve room for it on the title line
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'bold')
+      const badgeLabel = `${severity} Gap`
+      const badgeW = doc.getTextWidth(badgeLabel) + 6
+      const badgeX = margin + contentW - badgeW
+
+      // Title — truncated so it never runs into the badge
       doc.setFontSize(9)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(...COLORS.text)
-      doc.text(`${i + 1}. ${gap.feature_name}`, margin, y)
+      const titleText = `${i + 1}. ${gap.feature_name}`
+      const maxTitleW = contentW - badgeW - 6
+      const titleLine = doc.splitTextToSize(titleText, maxTitleW)[0]
+      doc.text(titleLine, margin, y)
 
+      // Badge — right-aligned, measured at the correct font size
       doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'bold')
       doc.setFillColor(...severityColor)
-      doc.roundedRect(margin + 2 + doc.getTextWidth(`${i + 1}. ${gap.feature_name}`), y - 3.5, 22, 5, 1, 1, 'F')
+      doc.roundedRect(badgeX, y - 3.5, badgeW, 5, 1, 1, 'F')
       doc.setTextColor(255, 255, 255)
-      doc.text(`${severity} Gap`, margin + 4 + doc.getTextWidth(`${i + 1}. ${gap.feature_name}`), y)
+      doc.text(badgeLabel, badgeX + 3, y)
       y += 5
 
+      // Sub-label: use ASCII "->" instead of Unicode arrow (unsupported in Helvetica)
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(...COLORS.muted)
       doc.text(
-        `${report.primary_company}: ${RATING_LABELS[gap.primary_rating]} → ${gap.best_competitor}: ${RATING_LABELS[gap.best_competitor_rating]}`,
+        `${report.primary_company}: ${RATING_LABELS[gap.primary_rating]}  ->  ${gap.best_competitor}: ${RATING_LABELS[gap.best_competitor_rating]}`,
         margin + 4, y
       )
       y += 4
@@ -249,4 +263,204 @@ export async function generatePDF(comparison: Comparison) {
   }
 
   doc.save(`${comparison.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.pdf`)
+}
+
+// Landscape matrix PDF — one page per section if needed
+const MATRIX_COL_COLORS: [number, number, number][] = [
+  [74, 144, 217],
+  [217, 74, 74],
+  [42, 161, 152],
+  [142, 68, 173],
+  [39, 174, 96],
+  [230, 126, 34],
+  [192, 57, 43],
+]
+
+const RATING_SHORT: Record<Rating, string> = {
+  best_at: 'Best',
+  good_at: 'Good',
+  okay_at: 'Okay',
+  mediocre_at: 'Fair',
+  bad_at: 'Weak',
+}
+
+export async function generateMatrixPDF(comparison: Comparison) {
+  const { default: jsPDF } = await import('jspdf')
+  const report = comparison.report_data as ComparisonReport
+  const allCompanies = [report.primary_company, ...report.competitors]
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+  const pageW = 297
+  const margin = 15
+  const contentW = pageW - margin * 2
+  let y = margin
+
+  const COLORS = {
+    primary: [99, 102, 241] as [number, number, number],
+    text: [30, 41, 59] as [number, number, number],
+    muted: [100, 116, 139] as [number, number, number],
+    border: [226, 232, 240] as [number, number, number],
+    best_at: [16, 185, 129] as [number, number, number],
+    good_at: [59, 130, 246] as [number, number, number],
+    okay_at: [245, 158, 11] as [number, number, number],
+    mediocre_at: [249, 115, 22] as [number, number, number],
+    bad_at: [239, 68, 68] as [number, number, number],
+    white: [255, 255, 255] as [number, number, number],
+    headerBg: [26, 46, 74] as [number, number, number],
+  }
+
+  const featureColW = 68
+  const compColW = (contentW - featureColW) / allCompanies.length
+  const rowH = 9
+
+  function checkPageBreak(needed = rowH) {
+    if (y + needed > 195) {
+      doc.addPage()
+      y = margin
+    }
+  }
+
+  // ─── Header banner ────────────────────────────────────────────────────────────
+  doc.setFillColor(...COLORS.headerBg)
+  doc.rect(0, 0, pageW, 28, 'F')
+  doc.setFontSize(16)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(255, 255, 255)
+  doc.text('Competitive Positioning Matrix', margin, 13)
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(180, 200, 220)
+  doc.text(
+    `${report.primary_company} vs. the Market  |  ${comparison.name}  |  ${new Date(report.generated_at).toLocaleDateString()}`,
+    margin, 21
+  )
+  y = 35
+
+  // ─── Column headers ───────────────────────────────────────────────────────────
+  checkPageBreak(rowH + 2)
+  doc.setFillColor(248, 250, 252)
+  doc.rect(margin, y - 5, contentW, rowH, 'F')
+
+  // Feature column header
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...COLORS.muted)
+  doc.text('Feature', margin + 3, y)
+
+  // Company column headers
+  allCompanies.forEach((company, i) => {
+    const colX = margin + featureColW + i * compColW
+    const [r, g, b] = MATRIX_COL_COLORS[i % MATRIX_COL_COLORS.length]
+    doc.setFillColor(r, g, b)
+    doc.roundedRect(colX + 2, y - 4.5, compColW - 4, 6, 1, 1, 'F')
+    doc.setFontSize(7.5)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(255, 255, 255)
+    const label = company.length > 18 ? company.slice(0, 17) + '…' : company
+    doc.text(label, colX + compColW / 2, y, { align: 'center' })
+  })
+  y += rowH - 2
+
+  // Divider under headers
+  doc.setDrawColor(...COLORS.border)
+  doc.line(margin, y, margin + contentW, y)
+  y += 2
+
+  // ─── Rows ─────────────────────────────────────────────────────────────────────
+  const primaryCompany = report.primary_company
+
+  report.feature_matrix.forEach((row, idx) => {
+    const featureLines = doc.splitTextToSize(row.feature_name, featureColW - 6)
+    const rowHeight = Math.max(rowH, featureLines.length * 4 + 3)
+    checkPageBreak(rowHeight)
+
+    // Row background
+    if (idx % 2 !== 0) {
+      doc.setFillColor(248, 250, 252)
+      doc.rect(margin, y - 5, contentW, rowHeight, 'F')
+    }
+    if (row.gap_flag) {
+      doc.setFillColor(255, 251, 235)
+      doc.rect(margin, y - 5, contentW, rowHeight, 'F')
+    }
+
+    // Feature name
+    doc.setFontSize(8)
+    doc.setFont('helvetica', row.gap_flag ? 'bold' : 'normal')
+    doc.setTextColor(...COLORS.text)
+    doc.text(featureLines, margin + 3, y)
+
+    // Rating cells
+    allCompanies.forEach((company, i) => {
+      const rating = row.ratings[company] as Rating | null
+      if (!rating) return
+      const primaryRating = row.ratings[primaryCompany] as Rating | null
+      const primaryScore = primaryRating ? RATING_SCORES[primaryRating] : 0
+      const score = RATING_SCORES[rating]
+      const isPrimary = i === 0
+
+      // Cell background tint
+      if (isPrimary && row.gap_flag) {
+        doc.setFillColor(254, 243, 199)
+        doc.rect(margin + featureColW + i * compColW, y - 5, compColW, rowHeight, 'F')
+      } else if (!isPrimary && score > primaryScore) {
+        doc.setFillColor(254, 226, 226)
+        doc.rect(margin + featureColW + i * compColW, y - 5, compColW, rowHeight, 'F')
+      } else if (isPrimary && !row.gap_flag) {
+        doc.setFillColor(240, 253, 244)
+        doc.rect(margin + featureColW + i * compColW, y - 5, compColW, rowHeight, 'F')
+      }
+
+      // Rating pill
+      const pillColor = COLORS[rating]
+      const label = RATING_SHORT[rating]
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'bold')
+      const pillW = doc.getTextWidth(label) + 5
+      const pillX = margin + featureColW + i * compColW + (compColW - pillW) / 2
+      doc.setFillColor(...pillColor)
+      doc.roundedRect(pillX, y - 3.5, pillW, 5, 1, 1, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.text(label, pillX + pillW / 2, y, { align: 'center' })
+    })
+
+    y += rowHeight
+    doc.setDrawColor(...COLORS.border)
+    doc.line(margin, y - 1, margin + contentW, y - 1)
+  })
+
+  // ─── Legend ───────────────────────────────────────────────────────────────────
+  y += 4
+  checkPageBreak(10)
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'normal')
+  const legendItems: [Rating, string][] = [
+    ['best_at', 'Best'],
+    ['good_at', 'Good'],
+    ['okay_at', 'Okay'],
+    ['mediocre_at', 'Fair'],
+    ['bad_at', 'Weak'],
+  ]
+  let lx = margin
+  legendItems.forEach(([rating, label]) => {
+    doc.setFillColor(...COLORS[rating])
+    doc.roundedRect(lx, y - 3.5, doc.getTextWidth(label) + 5, 5, 1, 1, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.text(label, lx + (doc.getTextWidth(label) + 5) / 2, y, { align: 'center' })
+    lx += doc.getTextWidth(label) + 10
+  })
+
+  // ─── Footer ───────────────────────────────────────────────────────────────────
+  const pageCount = doc.getNumberOfPages()
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...COLORS.muted)
+    doc.text(`Signal Scout Periscope  |  Page ${p} of ${pageCount}`, margin, 204)
+    doc.text(comparison.name, pageW - margin, 204, { align: 'right' })
+  }
+
+  doc.save(`${comparison.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-matrix.pdf`)
 }
